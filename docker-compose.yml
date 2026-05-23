@@ -1,0 +1,7 @@
+services:
+  weather-alerts:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - TZ=America/Sao_Paulo
