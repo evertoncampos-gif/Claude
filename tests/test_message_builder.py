@@ -39,7 +39,7 @@ def _make_condition(has_rain: bool = False) -> WeatherCondition:
 def test_daily_summary_contains_city():
     forecasts = [_make_forecast(i) for i in range(5)]
     msg = build_daily_summary(forecasts, "São Paulo")
-    assert "São Paulo" in msg
+    assert "Sao Paulo" in msg
 
 
 def test_daily_summary_shows_rainy_days():
@@ -59,7 +59,7 @@ def test_rain_alert_contains_severity():
     conditions = [_make_condition(has_rain=True)]
     msg = build_rain_alert(conditions, "São Paulo")
     assert "CHUVA" in msg
-    assert "São Paulo" in msg
+    assert "Sao Paulo" in msg
     assert "%" in msg
 
 
@@ -72,7 +72,7 @@ def test_current_weather_format():
     cond = _make_condition(has_rain=False)
     msg = build_current_weather(cond)
     assert "C" in msg
-    assert "São Paulo" in msg
+    assert "Sao Paulo" in msg
 
 
 def test_weather_condition_has_rain():

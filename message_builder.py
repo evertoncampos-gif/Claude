@@ -1,5 +1,6 @@
-"""Builds compact SMS messages (max 160 chars, no emojis) from weather data."""
+"""Builds compact SMS messages (max 160 chars, no emojis, no accents) from weather data."""
 
+import unicodedata
 from datetime import datetime
 from weather_client import WeatherCondition, DailyForecast
 
@@ -8,6 +9,13 @@ DAYS_PT = {
     0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui",
     4: "Sex", 5: "Sab", 6: "Dom",
 }
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def _day_label(dt: datetime) -> str:
@@ -21,7 +29,7 @@ def _day_label(dt: datetime) -> str:
 
 
 def build_daily_summary(forecasts: list[DailyForecast], city: str) -> str:
-    lines = [f"Tempo {city} {datetime.now().strftime('%d/%m')}:"]
+    lines = [f"Tempo {_strip_accents(city)} {datetime.now().strftime('%d/%m')}:"]
     for f in forecasts[:5]:
         label = _day_label(f.date)
         rain = f" Chuva {int(f.rain_probability * 100)}%" if f.has_rain else ""
@@ -35,9 +43,10 @@ def build_rain_alert(conditions: list[WeatherCondition], city: str) -> str:
     first = conditions[0]
     last = conditions[-1]
     duration = f" ate {last.timestamp.strftime('%H:%M')}" if len(conditions) > 1 else ""
+    severity = _strip_accents(first.rain_severity)
     lines = [
-        f"CHUVA em {city}!",
-        f"Chuva {first.rain_severity} a partir das {first.timestamp.strftime('%H:%M')}{duration}",
+        f"CHUVA em {_strip_accents(city)}!",
+        f"Chuva {severity} a partir das {first.timestamp.strftime('%H:%M')}{duration}",
         f"Prob: {int(first.rain_probability * 100)}%",
         f"Temp: {first.temperature:.0f}C",
     ]
@@ -48,9 +57,9 @@ def build_rain_alert(conditions: list[WeatherCondition], city: str) -> str:
 
 def build_current_weather(cond: WeatherCondition) -> str:
     lines = [
-        f"Tempo agora em {cond.city}:",
+        f"Tempo agora em {_strip_accents(cond.city)}:",
         f"{cond.temperature:.0f}C (sens. {cond.feels_like:.0f}C)",
-        f"{cond.description}",
+        f"{_strip_accents(cond.description)}",
         f"Umidade: {cond.humidity}% Vento: {cond.wind_speed:.1f}m/s",
     ]
     if cond.has_rain:
