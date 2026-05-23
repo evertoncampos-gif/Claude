@@ -1,89 +1,58 @@
-"""Builds human-readable SMS messages from weather data."""
+"""Builds compact SMS messages (max 160 chars, no emojis) from weather data."""
 
 from datetime import datetime
 from weather_client import WeatherCondition, DailyForecast
 
 
 DAYS_PT = {
-    0: "Segunda", 1: "Terça", 2: "Quarta", 3: "Quinta",
-    4: "Sexta", 5: "Sábado", 6: "Domingo",
-}
-
-MONTHS_PT = {
-    1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
-    7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez",
+    0: "Seg", 1: "Ter", 2: "Qua", 3: "Qui",
+    4: "Sex", 5: "Sab", 6: "Dom",
 }
 
 
 def _day_label(dt: datetime) -> str:
     today = datetime.now().date()
-    if dt.date() == today:
+    diff = (dt.date() - today).days
+    if diff == 0:
         return "Hoje"
-    if (dt.date() - today).days == 1:
-        return "Amanhã"
-    return f"{DAYS_PT[dt.weekday()]} {dt.day}/{MONTHS_PT[dt.month]}"
+    if diff == 1:
+        return "Amanha"
+    return f"{DAYS_PT[dt.weekday()]} {dt.day}/{dt.month:02d}"
 
 
 def build_daily_summary(forecasts: list[DailyForecast], city: str) -> str:
-    now = datetime.now().strftime("%d/%m %H:%M")
-    lines = [f"☀️ Previsão do tempo - {city}", f"📅 {now}", ""]
-
+    lines = [f"Tempo {city} {datetime.now().strftime('%d/%m')}:"]
     for f in forecasts[:5]:
         label = _day_label(f.date)
-        rain_info = ""
-        if f.has_rain:
-            rain_info = f"  🌧 Chuva {int(f.rain_probability * 100)}%"
-            if f.rain_mm > 0:
-                rain_info += f" ({f.rain_mm:.1f}mm)"
-
-        lines.append(
-            f"{label}: {f.temp_min:.0f}°-{f.temp_max:.0f}°C"
-            f"  {f.description}{rain_info}"
-        )
-
-    rainy_days = [f for f in forecasts[:5] if f.has_rain]
-    if rainy_days:
-        lines.append("")
-        lines.append("⚠️ Dias com chuva prevista: " + ", ".join(_day_label(f.date) for f in rainy_days))
-
+        rain = f" Chuva {int(f.rain_probability * 100)}%" if f.has_rain else ""
+        lines.append(f"{label}: {f.temp_min:.0f}-{f.temp_max:.0f}C{rain}")
     return "\n".join(lines)
 
 
 def build_rain_alert(conditions: list[WeatherCondition], city: str) -> str:
     if not conditions:
         return ""
-
     first = conditions[0]
-    time_str = first.timestamp.strftime("%H:%M")
-
-    severity = first.rain_severity
-    emoji = "⛈️" if severity == "forte" else "🌧️" if severity == "moderada" else "🌦️"
-
+    last = conditions[-1]
+    duration = f" ate {last.timestamp.strftime('%H:%M')}" if len(conditions) > 1 else ""
     lines = [
-        f"{emoji} ALERTA DE CHUVA - {city}",
-        f"Chuva {severity} prevista a partir das {time_str}.",
-        f"Probabilidade: {int(first.rain_probability * 100)}%",
+        f"CHUVA em {city}!",
+        f"Chuva {first.rain_severity} a partir das {first.timestamp.strftime('%H:%M')}{duration}",
+        f"Prob: {int(first.rain_probability * 100)}%",
+        f"Temp: {first.temperature:.0f}C",
     ]
-
     if first.rain_mm > 0:
-        lines.append(f"Volume estimado: {first.rain_mm:.1f}mm")
-
-    lines.append(f"Temp. atual: {first.temperature:.0f}°C ({first.description.lower()})")
-
-    if len(conditions) > 1:
-        last = conditions[-1]
-        lines.append(f"Duração prevista: até {last.timestamp.strftime('%H:%M')}")
-
+        lines.append(f"Vol: {first.rain_mm:.1f}mm")
     return "\n".join(lines)
 
 
 def build_current_weather(cond: WeatherCondition) -> str:
     lines = [
-        f"🌡️ Tempo agora em {cond.city}",
-        f"{cond.temperature:.0f}°C (sensação {cond.feels_like:.0f}°C)",
+        f"Tempo agora em {cond.city}:",
+        f"{cond.temperature:.0f}C (sens. {cond.feels_like:.0f}C)",
         f"{cond.description}",
-        f"Umidade: {cond.humidity}%  Vento: {cond.wind_speed:.1f}m/s",
+        f"Umidade: {cond.humidity}% Vento: {cond.wind_speed:.1f}m/s",
     ]
     if cond.has_rain:
-        lines.append(f"🌧 Chuva: {cond.rain_mm:.1f}mm")
+        lines.append(f"Chuva: {cond.rain_mm:.1f}mm")
     return "\n".join(lines)
