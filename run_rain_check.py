@@ -26,7 +26,7 @@ def main() -> None:
 
     weather = WeatherClient(
         api_key=_require("OPENWEATHER_API_KEY"),
-        city=os.getenv("CITY", "São Paulo,BR"),
+        city=os.getenv("CITY") or "Sao Paulo,BR",
     )
     sms = SMSSender(
         account_sid=_require("TWILIO_ACCOUNT_SID"),
