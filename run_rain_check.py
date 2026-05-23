@@ -48,7 +48,9 @@ def main() -> None:
     current = weather.current_weather()
     message = build_rain_alert(near_term, current.city)
     logger.info("Rain detected — sending alert for %s...", current.city)
-    sms.send(message)
+    if not sms.send(message):
+        logger.error("SMS not delivered. Check Twilio credentials and verified numbers.")
+        sys.exit(1)
     logger.info("Done.")
 
 

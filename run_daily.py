@@ -38,7 +38,9 @@ def main() -> None:
     city = forecasts[0].city if forecasts else weather.city
     message = build_daily_summary(forecasts, city)
     logger.info("Sending daily summary for %s...", city)
-    sms.send(message)
+    if not sms.send(message):
+        logger.error("SMS not delivered. Check Twilio credentials and verified numbers.")
+        sys.exit(1)
     logger.info("Done.")
 
 
