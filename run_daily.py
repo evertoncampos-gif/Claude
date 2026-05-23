@@ -22,6 +22,13 @@ def main() -> None:
     from weather_client import WeatherClient
     from sms_sender import SMSSender
     from message_builder import build_daily_summary
+    import unicodedata
+
+    def _strip_accents(text: str) -> str:
+        return "".join(
+            c for c in unicodedata.normalize("NFD", text)
+            if unicodedata.category(c) != "Mn"
+        )
 
     weather = WeatherClient(
         api_key=_require("OPENWEATHER_API_KEY"),
@@ -37,6 +44,23 @@ def main() -> None:
     forecasts = weather.daily_forecast(days=5)
     city = forecasts[0].city if forecasts else weather.city
     message = build_daily_summary(forecasts, city)
+
+    # Append air quality line
+    try:
+        aq = weather.air_quality()
+        if aq.is_concerning:
+            ar_line = f"Ar: {_strip_accents(aq.label)} (nivel {aq.aqi})"
+        else:
+            ar_line = f"Ar: {_strip_accents(aq.label)}"
+        # Respect 160-char limit: only append if it fits
+        candidate = message + "\n" + ar_line
+        if len(candidate) <= 160:
+            message = candidate
+        else:
+            logger.warning("Air quality line would exceed 160 chars; omitting from summary.")
+    except Exception as exc:
+        logger.warning("Could not fetch air quality data: %s", exc)
+
     logger.info("Sending daily summary for %s...", city)
     if not sms.send(message):
         logger.error("SMS not delivered. Check Twilio credentials and verified numbers.")

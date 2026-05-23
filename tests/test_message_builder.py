@@ -5,8 +5,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime
-from message_builder import build_daily_summary, build_rain_alert, build_current_weather
-from weather_client import WeatherCondition, DailyForecast
+from message_builder import (
+    build_daily_summary,
+    build_rain_alert,
+    build_current_weather,
+    build_air_quality_alert,
+    build_conditions_alert,
+)
+from weather_client import WeatherCondition, DailyForecast, AirQualityData, CurrentConditions
 
 
 def _make_forecast(days_offset: int, has_rain: bool = False) -> DailyForecast:
@@ -91,3 +97,162 @@ def test_rain_severity_levels():
     assert cond_with(25.0).rain_severity == "forte"
     assert cond_with(8.0).rain_severity == "moderada"
     assert cond_with(1.0).rain_severity == "leve"
+
+
+# --- Helpers for new data classes ---
+
+def _make_air_quality(aqi: int = 4) -> AirQualityData:
+    return AirQualityData(
+        aqi=aqi,
+        pm2_5=35.2,
+        pm10=55.0,
+        no2=20.1,
+        o3=80.5,
+        co=500.0,
+        timestamp=datetime.now(),
+        city="Sao Paulo",
+    )
+
+
+def _make_current_conditions(
+    wind_speed: float = 5.0,
+    temperature: float = 25.0,
+    humidity: int = 60,
+    visibility: int = 5000,
+) -> CurrentConditions:
+    return CurrentConditions(
+        temperature=temperature,
+        humidity=humidity,
+        wind_speed=wind_speed,
+        visibility=visibility,
+        pressure=1013.0,
+        description="Ceu claro",
+        city="Sao Paulo",
+        timestamp=datetime.now(),
+    )
+
+
+# --- AirQualityData property tests ---
+
+def test_air_quality_label_values():
+    assert _make_air_quality(1).label == "Boa"
+    assert _make_air_quality(2).label == "Razoavel"
+    assert _make_air_quality(3).label == "Moderada"
+    assert _make_air_quality(4).label == "Ruim"
+    assert _make_air_quality(5).label == "Muito ruim"
+
+
+def test_air_quality_is_concerning_threshold():
+    assert _make_air_quality(1).is_concerning is False
+    assert _make_air_quality(2).is_concerning is False
+    assert _make_air_quality(3).is_concerning is True
+    assert _make_air_quality(5).is_concerning is True
+
+
+# --- CurrentConditions property tests ---
+
+def test_has_strong_wind():
+    assert _make_current_conditions(wind_speed=17.0).has_strong_wind is True
+    assert _make_current_conditions(wind_speed=16.9).has_strong_wind is False
+
+
+def test_has_extreme_heat():
+    assert _make_current_conditions(temperature=38.0).has_extreme_heat is True
+    assert _make_current_conditions(temperature=37.9).has_extreme_heat is False
+
+
+def test_has_low_humidity():
+    assert _make_current_conditions(humidity=30).has_low_humidity is True
+    assert _make_current_conditions(humidity=31).has_low_humidity is False
+
+
+def test_has_low_visibility():
+    assert _make_current_conditions(visibility=1000).has_low_visibility is True
+    assert _make_current_conditions(visibility=1001).has_low_visibility is False
+
+
+# --- build_air_quality_alert tests ---
+
+def test_air_quality_alert_contains_city():
+    aq = _make_air_quality(4)
+    msg = build_air_quality_alert(aq)
+    assert "Sao Paulo" in msg
+
+
+def test_air_quality_alert_contains_label():
+    aq = _make_air_quality(4)
+    msg = build_air_quality_alert(aq)
+    assert "Ruim" in msg
+
+
+def test_air_quality_alert_contains_aqi_level():
+    aq = _make_air_quality(5)
+    msg = build_air_quality_alert(aq)
+    assert "5" in msg
+
+
+def test_air_quality_alert_max_160_chars():
+    aq = _make_air_quality(4)
+    msg = build_air_quality_alert(aq)
+    assert len(msg) <= 160
+
+
+def test_air_quality_alert_no_accents():
+    aq = AirQualityData(
+        aqi=5,
+        pm2_5=99.9,
+        pm10=120.0,
+        no2=50.0,
+        o3=100.0,
+        co=1000.0,
+        timestamp=datetime.now(),
+        city="Sao Paulo",
+    )
+    msg = build_air_quality_alert(aq)
+    import unicodedata
+    for ch in msg:
+        assert unicodedata.category(ch) != "Mn", f"Accent found: {ch!r}"
+
+
+# --- build_conditions_alert tests ---
+
+def test_conditions_alert_contains_city():
+    cond = _make_current_conditions(wind_speed=20.0)
+    msg = build_conditions_alert(cond, ["Vento forte"])
+    assert "Sao Paulo" in msg
+
+
+def test_conditions_alert_contains_trigger():
+    cond = _make_current_conditions(wind_speed=20.0)
+    msg = build_conditions_alert(cond, ["Vento forte"])
+    assert "Vento forte" in msg
+
+
+def test_conditions_alert_multiple_triggers():
+    cond = _make_current_conditions(wind_speed=20.0, temperature=39.0)
+    msg = build_conditions_alert(cond, ["Vento forte", "Calor extremo"])
+    assert "Vento forte" in msg
+    assert "Calor extremo" in msg
+
+
+def test_conditions_alert_max_160_chars():
+    cond = _make_current_conditions(wind_speed=20.0, temperature=40.0, humidity=20, visibility=500)
+    msg = build_conditions_alert(cond, ["Vento forte", "Calor extremo", "Umidade baixa", "Visibilidade baixa"])
+    assert len(msg) <= 160
+
+
+def test_conditions_alert_no_accents():
+    cond = CurrentConditions(
+        temperature=40.0,
+        humidity=20,
+        wind_speed=20.0,
+        visibility=500,
+        pressure=1010.0,
+        description="Ceu limpo",
+        city="Sao Paulo",
+        timestamp=datetime.now(),
+    )
+    msg = build_conditions_alert(cond, ["Vento forte"])
+    import unicodedata
+    for ch in msg:
+        assert unicodedata.category(ch) != "Mn", f"Accent found: {ch!r}"

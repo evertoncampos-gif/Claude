@@ -4,7 +4,7 @@ import os
 import requests
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Optional, ClassVar
 
 
 @dataclass
@@ -138,3 +138,102 @@ class WeatherClient:
     def next_rain_windows(self) -> list[WeatherCondition]:
         """Returns upcoming hours where rain is expected."""
         return [h for h in self.hourly_forecast() if h.has_rain]
+
+    def _get_coords(self) -> tuple[float, float]:
+        """Returns (lat, lon) for the configured city."""
+        data = self._get("weather", {"q": self.city})
+        return data["coord"]["lat"], data["coord"]["lon"]
+
+    def air_quality(self) -> "AirQualityData":
+        """Fetches current air quality using the /air_pollution endpoint."""
+        lat, lon = self._get_coords()
+        params = {"lat": lat, "lon": lon, "appid": self.api_key}
+        response = requests.get(
+            "https://api.openweathermap.org/data/2.5/air_pollution",
+            params=params,
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+        item = data["list"][0]
+        components = item["components"]
+        return AirQualityData(
+            aqi=item["main"]["aqi"],
+            pm2_5=components.get("pm2_5", 0.0),
+            pm10=components.get("pm10", 0.0),
+            no2=components.get("no2", 0.0),
+            o3=components.get("o3", 0.0),
+            co=components.get("co", 0.0),
+            timestamp=datetime.fromtimestamp(item["dt"]),
+            city=self.city,
+        )
+
+    def current_conditions(self) -> "CurrentConditions":
+        """Returns current weather conditions."""
+        data = self._get("weather", {"q": self.city})
+        return CurrentConditions(
+            temperature=data["main"]["temp"],
+            humidity=data["main"]["humidity"],
+            wind_speed=data["wind"]["speed"],
+            visibility=data.get("visibility", 10000),
+            pressure=data["main"]["pressure"],
+            description=data["weather"][0]["description"].capitalize(),
+            city=data["name"],
+            timestamp=datetime.fromtimestamp(data["dt"]),
+        )
+
+
+@dataclass
+class AirQualityData:
+    aqi: int  # 1-5 scale
+    pm2_5: float
+    pm10: float
+    no2: float
+    o3: float
+    co: float
+    timestamp: datetime
+    city: str
+
+    _AQI_LABELS: ClassVar[dict[int, str]] = {
+        1: "Boa",
+        2: "Razoavel",
+        3: "Moderada",
+        4: "Ruim",
+        5: "Muito ruim",
+    }
+
+    @property
+    def label(self) -> str:
+        return self._AQI_LABELS.get(self.aqi, "Desconhecida")
+
+    @property
+    def is_concerning(self) -> bool:
+        return self.aqi >= 3
+
+
+@dataclass
+class CurrentConditions:
+    temperature: float
+    humidity: int
+    wind_speed: float
+    visibility: int
+    pressure: float
+    description: str
+    city: str
+    timestamp: datetime
+
+    @property
+    def has_strong_wind(self) -> bool:
+        return self.wind_speed >= 17
+
+    @property
+    def has_extreme_heat(self) -> bool:
+        return self.temperature >= 38
+
+    @property
+    def has_low_humidity(self) -> bool:
+        return self.humidity <= 30
+
+    @property
+    def has_low_visibility(self) -> bool:
+        return self.visibility <= 1000

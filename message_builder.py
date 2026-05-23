@@ -2,7 +2,7 @@
 
 import unicodedata
 from datetime import datetime
-from weather_client import WeatherCondition, DailyForecast
+from weather_client import WeatherCondition, DailyForecast, AirQualityData, CurrentConditions
 
 
 DAYS_PT = {
@@ -65,3 +65,33 @@ def build_current_weather(cond: WeatherCondition) -> str:
     if cond.has_rain:
         lines.append(f"Chuva: {cond.rain_mm:.1f}mm")
     return "\n".join(lines)
+
+
+def build_air_quality_alert(aq: AirQualityData) -> str:
+    """Builds an air quality alert SMS (max 160 chars, no accents, no emojis)."""
+    city = _strip_accents(aq.city)
+    label = _strip_accents(aq.label)
+    lines = [
+        f"QUALIDADE DO AR em {city}:",
+        f"Nivel: {label} (AQI {aq.aqi}/5)",
+        f"PM2.5: {aq.pm2_5:.1f} PM10: {aq.pm10:.1f}",
+        f"NO2: {aq.no2:.1f} O3: {aq.o3:.1f}",
+    ]
+    msg = "\n".join(lines)
+    return msg[:160]
+
+
+def build_conditions_alert(cond: CurrentConditions, triggers: list[str]) -> str:
+    """Builds a consolidated alert SMS for non-rain weather hazards (max 160 chars)."""
+    city = _strip_accents(cond.city)
+    desc = _strip_accents(cond.description)
+    trigger_line = ", ".join(_strip_accents(t) for t in triggers)
+    lines = [
+        f"ALERTA CLIMA {city}:",
+        trigger_line,
+        f"Temp: {cond.temperature:.0f}C Umid: {cond.humidity}%",
+        f"Vento: {cond.wind_speed:.1f}m/s Vis: {cond.visibility}m",
+        desc,
+    ]
+    msg = "\n".join(lines)
+    return msg[:160]

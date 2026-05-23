@@ -28,4 +28,4 @@ jobs:
           TWILIO_FROM_NUMBER: ${{ secrets.TWILIO_FROM_NUMBER }}
           TWILIO_TO_NUMBER: ${{ secrets.TWILIO_TO_NUMBER }}
           CITY: ${{ secrets.CITY || 'Duque de Caxias,BR' }}
-        run: python run_rain_check.py
+        run: python run_alerts.py
