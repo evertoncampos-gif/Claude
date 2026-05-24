@@ -95,4 +95,8 @@ def build_conditions_alert(cond: CurrentConditions, triggers: list[str]) -> str:
         desc,
     ]
     msg = "\n".join(lines)
+    if "Calor extremo" in triggers:
+        tip = "\nUse protetor solar!"
+        if len(msg) + len(tip) <= 160:
+            msg += tip
     return msg[:160]
