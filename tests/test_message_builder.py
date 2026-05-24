@@ -51,7 +51,7 @@ def test_daily_summary_contains_city():
 def test_daily_summary_shows_rainy_days():
     forecasts = [_make_forecast(0, has_rain=True)] + [_make_forecast(i) for i in range(1, 5)]
     msg = build_daily_summary(forecasts, "São Paulo")
-    assert "Chuva" in msg
+    assert "C70%" in msg
     assert "Hoje" in msg
 
 

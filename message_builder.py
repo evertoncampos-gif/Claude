@@ -32,8 +32,12 @@ def build_daily_summary(forecasts: list[DailyForecast], city: str) -> str:
     lines = [f"Tempo {_strip_accents(city)} {datetime.now().strftime('%d/%m')}:"]
     for f in forecasts[:5]:
         label = _day_label(f.date)
-        rain = f" Chuva {int(f.rain_probability * 100)}%" if f.has_rain else ""
-        lines.append(f"{label}: {f.temp_min:.0f}-{f.temp_max:.0f}C{rain}")
+        rain = f" C{int(f.rain_probability * 100)}%" if f.has_rain else ""
+        line = f"{label}: {f.temp_min:.0f}-{f.temp_max:.0f}C{rain}"
+        if len("\n".join(lines + [line])) <= 160:
+            lines.append(line)
+        else:
+            break
     return "\n".join(lines)
 
 
